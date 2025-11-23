@@ -3,14 +3,14 @@
 pragma solidity ^0.8.20;
 
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
-import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {Ownable} from "solady/auth/Ownable.sol";
 
 import {INonfungiblePositionManager} from "./interfaces/INonfungiblePositionManager.sol";
 
 /// @title UniV3PermanentLocker
 /// @notice Locks a single Uniswap V3 LP NFT forever, but allows fee collection.
 /// @author JChoy
-contract UniV3PermanentLocker is IERC721Receiver, Ownable2Step {
+contract UniV3PermanentLocker is IERC721Receiver, Ownable {
     /// @notice The Uniswap V3 NonfungiblePositionManager contract
     INonfungiblePositionManager public immutable POSITION_MANAGER;
 
@@ -36,10 +36,11 @@ contract UniV3PermanentLocker is IERC721Receiver, Ownable2Step {
 
     /// @notice Initializes the locker contract
     /// @param _positionManager The address of the Uniswap V3 NonfungiblePositionManager
-    /// @param _owner The owner address (can be zero address for permanent lock)
+    /// @param _owner The owner address for the locker
     /// @param _tokenId The token ID of the Uniswap V3 LP position to lock
     /// @dev The token must already be transferred to this contract before construction
-    constructor(address _positionManager, address _owner, uint256 _tokenId) Ownable(_owner) {
+    constructor(address _positionManager, address _owner, uint256 _tokenId) {
+        _initializeOwner(_owner);
         POSITION_MANAGER = INonfungiblePositionManager(_positionManager);
         lockedTokenId = _tokenId;
         if (POSITION_MANAGER.ownerOf(_tokenId) != address(this)) {
