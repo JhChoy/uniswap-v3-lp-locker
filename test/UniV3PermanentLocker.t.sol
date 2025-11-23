@@ -38,10 +38,13 @@ contract UniV3PermanentLockerTest is Test {
         UniV3PermanentLocker locker = _deployLocker(TOKEN_ID, lockerOwner);
         positionManager.setCollectResult(1e18, 2e18);
 
+        vm.prank(lockerOwner);
+        locker.setFeeRecipient(feeRecipient);
+
         vm.expectEmit(true, true, false, true);
         emit FeesCollected(TOKEN_ID, feeRecipient, 1e18, 2e18);
         vm.prank(lockerOwner);
-        (uint256 amount0, uint256 amount1) = locker.collect(feeRecipient, 25, 50);
+        (uint256 amount0, uint256 amount1) = locker.collect(25, 50);
 
         assertEq(amount0, 1e18, "amount0 mismatch");
         assertEq(amount1, 2e18, "amount1 mismatch");
@@ -61,7 +64,7 @@ contract UniV3PermanentLockerTest is Test {
 
         vm.expectRevert(Ownable.Unauthorized.selector);
         vm.prank(attacker);
-        locker.collect(feeRecipient, 1, 1);
+        locker.collect(1, 1);
     }
 
     function testCollectAllowedAfterRenounce() public {
@@ -73,7 +76,7 @@ contract UniV3PermanentLockerTest is Test {
 
         address randomCaller = makeAddr("random");
         vm.prank(randomCaller);
-        (uint256 amount0, uint256 amount1) = locker.collect(feeRecipient, 10, 11);
+        (uint256 amount0, uint256 amount1) = locker.collect(10, 11);
 
         assertEq(amount0, 5);
         assertEq(amount1, 7);
@@ -103,6 +106,8 @@ contract UniV3PermanentLockerTest is Test {
         positionManager.setCollectResult(3, 6);
 
         vm.prank(lockerOwner);
+        locker.setFeeRecipient(address(0));
+        vm.prank(lockerOwner);
         locker.renounceOwnership();
 
         vm.prank(makeAddr("anyone"));
@@ -120,6 +125,20 @@ contract UniV3PermanentLockerTest is Test {
         vm.prank(lpHolder);
         address lockerAddr = factory.deploy(owner_, tokenId);
         locker = UniV3PermanentLocker(payable(lockerAddr));
+    }
+
+    function testSetFeeRecipientOnlyOwner() public {
+        UniV3PermanentLocker locker = _deployLocker(TOKEN_ID, lockerOwner);
+        address newRecipient = makeAddr("newRecipient");
+
+        vm.prank(lockerOwner);
+        locker.setFeeRecipient(newRecipient);
+        assertEq(locker.feeRecipient(), newRecipient);
+
+        address attacker = makeAddr("attacker");
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        vm.prank(attacker);
+        locker.setFeeRecipient(feeRecipient);
     }
 }
 

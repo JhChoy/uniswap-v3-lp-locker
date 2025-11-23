@@ -15,7 +15,10 @@ contract UniV3PermanentLocker is IERC721Receiver, Ownable {
     INonfungiblePositionManager public immutable POSITION_MANAGER;
 
     /// @notice The token ID of the locked Uniswap V3 LP position
-    uint256 public lockedTokenId;
+    uint256 public immutable lockedTokenId;
+
+    /// @notice Address that receives collected fees
+    address public feeRecipient;
 
     /// @notice Emitted when fees are collected from the locked position
     /// @param tokenId The token ID of the position
@@ -23,6 +26,11 @@ contract UniV3PermanentLocker is IERC721Receiver, Ownable {
     /// @param amount0 The amount of token0 collected
     /// @param amount1 The amount of token1 collected
     event FeesCollected(uint256 indexed tokenId, address indexed recipient, uint256 amount0, uint256 amount1);
+
+    /// @notice Emitted when the fee recipient is updated
+    /// @param previousRecipient The previous fee recipient address
+    /// @param newRecipient The new fee recipient address
+    event FeeRecipientUpdated(address indexed previousRecipient, address indexed newRecipient);
 
     /// @notice Thrown when the contract does not own the specified token ID
     error NotOwner();
@@ -43,36 +51,43 @@ contract UniV3PermanentLocker is IERC721Receiver, Ownable {
         _initializeOwner(_owner);
         POSITION_MANAGER = INonfungiblePositionManager(_positionManager);
         lockedTokenId = _tokenId;
+        feeRecipient = _owner;
         if (POSITION_MANAGER.ownerOf(_tokenId) != address(this)) {
             revert NotOwner();
         }
     }
 
     /// @notice Collect fees from the locked position
-    /// @param recipient The address to receive the collected fees
     /// @param amount0Max Maximum amount of token0 to collect
     /// @param amount1Max Maximum amount of token1 to collect
     /// @return amount0 The amount of token0 collected
     /// @return amount1 The amount of token1 collected
-    function collect(address recipient, uint128 amount0Max, uint128 amount1Max)
-        external
-        onlyOwnerIfSet
-        returns (uint256, uint256)
-    {
-        return _collect(recipient, amount0Max, amount1Max);
+    function collect(uint128 amount0Max, uint128 amount1Max) external onlyOwnerIfSet returns (uint256, uint256) {
+        return _collect(amount0Max, amount1Max);
     }
 
-    /// @notice Collect all available fees from the locked position and send them to the owner
+    /// @notice Collect all available fees from the locked position and send them to the configured fee recipient
     /// @return amount0 The amount of token0 collected
     /// @return amount1 The amount of token1 collected
     function collectAll() external onlyOwnerIfSet returns (uint256, uint256) {
-        return _collect(owner(), type(uint128).max, type(uint128).max);
+        return _collect(type(uint128).max, type(uint128).max);
     }
 
-    function _collect(address recipient, uint128 amount0Max, uint128 amount1Max)
-        internal
-        returns (uint256 amount0, uint256 amount1)
-    {
+    /// @notice Updates the fee recipient address used for collections
+    /// @param newRecipient The new fee recipient (can be set to address(0) if desired)
+    function setFeeRecipient(address newRecipient) external onlyOwner {
+        address previousRecipient = feeRecipient;
+        feeRecipient = newRecipient;
+        emit FeeRecipientUpdated(previousRecipient, newRecipient);
+    }
+
+    /// @notice Internal helper to collect fees using the configured fee recipient
+    /// @param amount0Max Maximum amount of token0 to collect
+    /// @param amount1Max Maximum amount of token1 to collect
+    /// @return amount0 The amount of token0 collected
+    /// @return amount1 The amount of token1 collected
+    function _collect(uint128 amount0Max, uint128 amount1Max) internal returns (uint256 amount0, uint256 amount1) {
+        address recipient = feeRecipient;
         INonfungiblePositionManager.CollectParams memory params = INonfungiblePositionManager.CollectParams({
             tokenId: lockedTokenId, recipient: recipient, amount0Max: amount0Max, amount1Max: amount1Max
         });
